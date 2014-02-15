@@ -1,0 +1,8 @@
+/*===- llvm/Config/Disassemblers.def - LLVM Assembly Parsers ----*- C++ -*-===*\
+|* This file is distributed under the University of Illinois Open Source      *|
+|* License. See LICENSE.TXT for details.                                      *|
+\*===----------------------------------------------------------------------===*/
+#ifndef LLVM_DISASSEMBLER
+#  error Please define the macro LLVM_DISASSEMBLER(TargetName)
+#endif
+#undef LLVM_DISASSEMBLER

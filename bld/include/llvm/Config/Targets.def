@@ -1,0 +1,9 @@
+/*===- llvm/Config/Targets.def - LLVM Target Architectures ------*- C++ -*-===*\
+|* This file is distributed under the University of Illinois Open Source      *|
+|* License. See LICENSE.TXT for details.                                      *|
+\*===----------------------------------------------------------------------===*/
+#ifndef LLVM_TARGET
+#  error Please define the macro LLVM_TARGET(TargetName)
+#endif
+LLVM_TARGET(BPF) 
+#undef LLVM_TARGET

@@ -1,0 +1,9 @@
+/*===- llvm/Config/AsmPrinters.def - LLVM Assembly Printers -----*- C++ -*-===*\
+|* This file is distributed under the University of Illinois Open Source      *|
+|* License. See LICENSE.TXT for details.                                      *|
+\*===----------------------------------------------------------------------===*/
+#ifndef LLVM_ASM_PRINTER
+#  error Please define the macro LLVM_ASM_PRINTER(TargetName)
+#endif
+LLVM_ASM_PRINTER(BPF) 
+#undef LLVM_ASM_PRINTER
