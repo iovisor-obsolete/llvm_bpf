@@ -64,7 +64,10 @@ def brtarget : Operand<OtherVT>;
 def calltarget : Operand<i64>;
 
 def s32imm   : Operand<i64> {
-  let PrintMethod = "printS32ImmOperand";
+}
+
+def u64imm   : Operand<i64> {
+  let PrintMethod = "printImm64Operand";
 }
 
 def immSExt32 : PatLeaf<(imm),
@@ -114,7 +117,7 @@ class JMP_RR<bits<4> br_op, string asmstr, PatLeaf Cond>
 
   let op = br_op;
   let src = 1;
-  let bpfClass = 5; // BPF_JUMP
+  let bpfClass = 5; // BPF_JMP
 }
 
 class JMP_RI<bits<4> br_op, string asmstr, PatLeaf Cond>
@@ -135,7 +138,7 @@ class JMP_RI<bits<4> br_op, string asmstr, PatLeaf Cond>
 
   let op = br_op;
   let src = 0;
-  let bpfClass = 5; // BPF_JUMP
+  let bpfClass = 5; // BPF_JMP
 }
 
 multiclass J<bits<4> op2Val, string asmstr, PatLeaf Cond> {
@@ -170,7 +173,7 @@ class ALU_RI<bits<4> aluOp, string asmstr, SDNode OpNode>
 
   let op = aluOp;
   let src = 0;
-  let bpfClass = 4;
+  let bpfClass = 7; // BPF_ALU64
 }
 
 class ALU_RR<bits<4> aluOp, string asmstr, SDNode OpNode>
@@ -189,7 +192,7 @@ class ALU_RR<bits<4> aluOp, string asmstr, SDNode OpNode>
 
   let op = aluOp;
   let src = 1;
-  let bpfClass = 4;
+  let bpfClass = 7; // BPF_ALU64
 }
 
 multiclass ALU<bits<4> opVal, string asmstr, SDNode OpNode> {
@@ -226,9 +229,9 @@ class MOV_RR<string asmstr>
   let Inst{55-52} = rX;
   let Inst{51-48} = rA;
 
-  let op = 0xb;
-  let src = 1;
-  let bpfClass = 4;
+  let op = 0xb;     // BPF_MOV
+  let src = 1;      // BPF_X
+  let bpfClass = 7; // BPF_ALU64
 }
 
 class MOV_RI<string asmstr>
@@ -245,12 +248,35 @@ class MOV_RI<string asmstr>
   let Inst{51-48} = rA;
   let Inst{31-0} = imm;
 
-  let op = 0xb;
-  let src = 0;
-  let bpfClass = 4;
+  let op = 0xb;     // BPF_MOV
+  let src = 0;      // BPF_K
+  let bpfClass = 7; // BPF_ALU64
 }
 def MOV_rr : MOV_RR<"mov">;
 def MOV_ri : MOV_RI<"mov">;
+
+class LD_IMM64<bits<4> pseudo, string asmstr>
+  : InstBPF<(outs GPR:$rA), (ins u64imm:$imm),
+            !strconcat(asmstr, "\t$rA, $imm"),
+            [(set GPR:$rA, (i64 imm:$imm))]> {
+
+  bits<3> mode;
+  bits<2> size;
+  bits<4> rA;
+  bits<64> imm;
+
+  let Inst{63-61} = mode;
+  let Inst{60-59} = size;
+  let Inst{51-48} = rA;
+  let Inst{55-52} = pseudo;
+  let Inst{47-32} = 0;
+  let Inst{31-0} = imm{31-0};
+
+  let mode = 0;     // BPF_IMM
+  let size = 3;     // BPF_DW
+  let bpfClass = 0; // BPF_LD
+}
+def LD_imm64 : LD_IMM64<0, "ld_64">;
 
 // STORE instructions
 class STORE<bits<2> sizeOp, string asmstring, list<dag> pattern>
@@ -267,7 +293,7 @@ class STORE<bits<2> sizeOp, string asmstring, list<dag> pattern>
   let Inst{55-52} = rX;
   let Inst{47-32} = addr{15-0}; // offset
 
-  let mode = 6; // BPF_REL
+  let mode = 3;     // BPF_MEM
   let size = sizeOp;
   let bpfClass = 3; // BPF_STX
 }
@@ -295,7 +321,7 @@ class LOAD<bits<2> sizeOp, string asmstring, list<dag> pattern>
   let Inst{55-52} = addr{19-16};
   let Inst{47-32} = addr{15-0};
 
-  let mode = 6; // BPF_REL
+  let mode = 3;     // BPF_MEM
   let size = sizeOp;
   let bpfClass = 1; // BPF_LDX
 }
@@ -324,8 +350,8 @@ class BRANCH<bits<4> subOp, string asmstring, list<dag> pattern>
   let Inst{47-32} = dst;
 
   let op = subOp;
-  let src = 1;
-  let bpfClass = 5; // BPF_JUMP
+  let src = 0;
+  let bpfClass = 5; // BPF_JMP
 }
 
 class CALL<string asmstring>
@@ -339,9 +365,9 @@ class CALL<string asmstring>
   let Inst{59} = src;
   let Inst{31-0} = dst;
 
-  let op = 8; // BPF_CALL
+  let op = 8;       // BPF_CALL
   let src = 0;
-  let bpfClass = 5; // BPF_JUMP
+  let bpfClass = 5; // BPF_JMP
 }
 
 // Jump always
@@ -360,12 +386,22 @@ let isCall=1, hasDelaySlot=0,
 class NOP_I<string asmstr>
   : InstBPF<(outs), (ins i32imm:$imm),
            !strconcat(asmstr, "\t$imm"), []> {
-  bits<32> imm;
+  // mov r0, r0 == nop
+  bits<4> op;
+  bits<1> src;
+  bits<4> rA;
+  bits<4> rX;
 
-  let Inst{31-0} = imm;
+  let Inst{63-60} = op;
+  let Inst{59} = src;
+  let Inst{55-52} = rX;
+  let Inst{51-48} = rA;
 
-  let Inst{63-59} = 0;
-  let bpfClass = 7; // BPF_MISC
+  let op = 0xb;     // BPF_MOV
+  let src = 1;      // BPF_X
+  let bpfClass = 7; // BPF_ALU64
+  let rX = 0;       // R0
+  let rA = 0;       // R0
 }
 
 let neverHasSideEffects = 1 in
@@ -374,8 +410,14 @@ let neverHasSideEffects = 1 in
 class RET<string asmstring>
   : InstBPF<(outs), (ins),
            !strconcat(asmstring, ""), [(retflag)]> {
-  let Inst{63-59} = 0;
-  let bpfClass = 6; // BPF_RET
+  bits<4> op;
+
+  let Inst{63-60} = op;
+  let Inst{59} = 0;
+  let Inst{31-0} = 0;
+
+  let op = 9;       // BPF_EXIT
+  let bpfClass = 5; // BPF_JMP
 }
 
 let isReturn = 1, isTerminator = 1, hasDelaySlot=0, isBarrier = 1, isNotDuplicable = 1 in {
@@ -407,10 +449,11 @@ let usesCustomInserter = 1 in {
                         (BPFselectcc (i64 GPR:$lhs), (i64 GPR:$rhs), (i64 imm:$imm), (i64 GPR:$src), (i64 GPR:$src2)))]>;
 }
 
-// Non-Instruction Patterns
+// load 64-bit global addr into register
+def : Pat<(BPFWrapper tglobaladdr:$in), (LD_imm64 tglobaladdr:$in)>;
 
 // arbitrary immediate
-def : Pat<(i64 imm:$imm), (ADD_ri (SLL_ri (MOV_ri (HI32 imm:$imm)), 32), (LO32 imm:$imm))>;
+//def : Pat<(i64 imm:$imm), (ADD_ri (SLL_ri (MOV_ri (HI32 imm:$imm)), 32), (LO32 imm:$imm))>;
 
 // 0xffffFFFF doesn't fit into simm32, optimize common case
 def : Pat<(i64 (and (i64 GPR:$src), 0xffffFFFF)), (SRL_ri (SLL_ri (i64 GPR:$src), 32), 32)>;
@@ -419,7 +462,7 @@ def : Pat<(i64 (and (i64 GPR:$src), 0xffffFFFF)), (SRL_ri (SLL_ri (i64 GPR:$src)
 def : Pat<(call tglobaladdr:$dst), (JAL tglobaladdr:$dst)>;
 //def : Pat<(call texternalsym:$dst), (JAL texternalsym:$dst)>;
 //def : Pat<(call (i32 imm:$dst)), (JAL (i32 imm:$dst))>;
-//def : Pat<(call imm:$dst), (JAL imm:$dst)>;
+def : Pat<(call imm:$dst), (JAL imm:$dst)>;
 
 // Loads
 def : Pat<(extloadi8  ADDRri:$src), (i64 (LDB ADDRri:$src))>;
@@ -442,7 +485,7 @@ class XADD<bits<2> sizeOp, string asmstr, PatFrag opNode>
   let Inst{55-52} = rX;
   let Inst{47-32} = addr{15-0}; // offset
 
-  let mode = 7; // BPF_XADD
+  let mode = 6;     // BPF_XADD
   let size = sizeOp;
   let bpfClass = 3; // BPF_STX
 }

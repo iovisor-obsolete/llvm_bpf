@@ -71,9 +71,11 @@ void BPFInstPrinter::printMemOperand(const MCInst *MI, int OpNo,
   O  << "(" << getRegisterName(RegOp.getReg()) << ")";
 }
 
-void BPFInstPrinter::printS32ImmOperand(const MCInst *MI, unsigned OpNo,
+void BPFInstPrinter::printImm64Operand(const MCInst *MI, unsigned OpNo,
                                          raw_ostream &O) {
   const MCOperand &Op = MI->getOperand(OpNo);
-  assert(Op.isImm() && "Immediate operand not an immediate");
-  O << (int32_t)Op.getImm();
+  if (Op.isImm())
+    O << (uint64_t)Op.getImm();
+  else
+    O << Op;
 }

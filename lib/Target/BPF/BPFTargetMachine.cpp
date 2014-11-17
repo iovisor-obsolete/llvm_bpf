@@ -50,7 +50,6 @@ public:
   }
 
   virtual bool addInstSelector();
-  virtual bool addPreEmitPass();
 };
 }
 
@@ -64,9 +63,4 @@ bool BPFPassConfig::addInstSelector() {
   addPass(createBPFISelDag(getBPFTargetMachine()));
 
   return false;
-}
-
-bool BPFPassConfig::addPreEmitPass() {
-  addPass(createBPFCFGFixup(getBPFTargetMachine()));
-  return true;
 }

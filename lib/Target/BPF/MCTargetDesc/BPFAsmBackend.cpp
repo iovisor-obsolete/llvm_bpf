@@ -61,13 +61,17 @@ bool BPFAsmBackend::writeNopData(uint64_t Count, MCObjectWriter *OW) const {
 void BPFAsmBackend::applyFixup(const MCFixup &Fixup, char *Data,
                                unsigned DataSize, uint64_t Value) const {
 
-  assert (Fixup.getKind() == FK_PCRel_2);
-  *(uint16_t*)&Data[Fixup.getOffset() + 2] = (uint16_t) ((Value - 8) / 8);
-
   if (0)
    errs() << "<MCFixup" << " Offset:" << Fixup.getOffset() << " Value:" <<
      *(Fixup.getValue()) << " Kind:" << Fixup.getKind() <<
      " val " << Value << ">\n";
+
+  if (Fixup.getKind() == FK_SecRel_4 || Fixup.getKind() == FK_SecRel_8) {
+    assert (Value == 0);
+    return;
+  }
+  assert (Fixup.getKind() == FK_PCRel_2);
+  *(uint16_t*)&Data[Fixup.getOffset() + 2] = (uint16_t) ((Value - 8) / 8);
 }
 
 MCObjectWriter *BPFAsmBackend::createObjectWriter(raw_ostream &OS) const {

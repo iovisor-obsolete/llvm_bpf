@@ -575,9 +575,16 @@ const char *BPFTargetLowering::getTargetNodeName(unsigned Opcode) const {
 
 SDValue BPFTargetLowering::LowerGlobalAddress(SDValue Op,
                                               SelectionDAG &DAG) const {
-  Op.dump();
-  report_fatal_error("LowerGlobalAddress: BPF cannot access global variables");
-  return SDValue();
+//  Op.dump();
+#if LLVM_VERSION_MINOR==4
+  SDLoc    dl(Op);
+#else
+  DebugLoc dl = Op.getDebugLoc();
+#endif
+  const GlobalValue *GV = cast<GlobalAddressSDNode>(Op)->getGlobal();
+  SDValue GA = DAG.getTargetGlobalAddress(GV, dl, MVT::i64);
+
+  return DAG.getNode(BPFISD::Wrapper, dl, MVT::i64, GA);
 }
 
 MachineBasicBlock*

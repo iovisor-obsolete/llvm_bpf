@@ -22,8 +22,6 @@ class BPFTargetMachine;
 /// BPF-specific DAG, ready for instruction scheduling.
 FunctionPass *createBPFISelDag(BPFTargetMachine &TM);
 
-FunctionPass *createBPFCFGFixup(BPFTargetMachine &TM);
-
 extern Target TheBPFTarget;
 }
 
